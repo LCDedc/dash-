@@ -1,65 +1,75 @@
+#而除了上面介绍的一股脑返回所有集合内成员部件的ALL模式之外，还有另一种更有针对性的MATCH模式，
+# 它应用于结合内成员部件可交互输入值的情况，譬如下面这个简单的例子，我们定义一个简单的用于查询省份行政代码的应用，
+# 配合MATCH模式来实现彼此成对独立输出：
 import dash
 import dash_bootstrap_components as dbc
 import dash_html_components as html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State, MATCH
+import dash_core_components as dcc
 
-app = dash.Dash(
-    __name__,
-    external_stylesheets=['css/bootstrap.min.css']
-)
+app = dash.Dash(__name__)
 
 app.layout = html.Div(
-    dbc.Container(
-        [
-            html.Br(),
-            html.Br(),
-            html.Br(),
-            dbc.Row(
-                [
+    [
+        html.Br(),
+        html.Br(),
+        html.Br(),
+        dbc.Container(
+            [
+                dbc.Row(
                     dbc.Col(
-                        dbc.Input(id='input1'),
-                        width=4
-                    ),
-                    dbc.Col(
-                        dbc.Label(id='output1'),
-                        width=4
+                        dbc.Button('新增查询', id='add-item', outline=True)
                     )
-                ]
-            ),
-            dbc.Row(
-                [
-                    dbc.Col(
-                        dbc.Input(id='input2'),
-                        width=4
-                    ),
-                    dbc.Col(
-                        dbc.Label(id='output2'),
-                        width=4
-                    )
-                ]
-            )
-        ]
+                ),
+                html.Hr()
+            ]
+        ),
+        dbc.Container([], id='query-container')
+    ]
+)
+
+region2code = {
+    '北京市': '110000000000',
+    '重庆市': '500000000000',
+    '安徽省': '340000000000'
+}
+
+
+@app.callback(
+    Output('query-container', 'children'),
+    Input('add-item', 'n_clicks'),
+    State('query-container', 'children'),
+    prevent_initial_call=True
+)
+def add_query_item(n_clicks, children):
+    children.append(
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        # 生成index相同的dropdown部件与文字输出部件
+                        dcc.Dropdown(id={'type': 'select-province', 'index': children.__len__()},
+                                     options=[{'label': label, 'value': label} for label in region2code.keys()],
+                                     placeholder='选择省份：'),
+                        html.P('请输入要查询的省份！', id={'type': 'code-output', 'index': children.__len__()})
+                    ]
+                )
+            ]
+        )
     )
-)
+
+    return children
 
 @app.callback(
-    Output('output1', 'children'),
-    Input('input1', 'value')
+    Output({'type': 'code-output', 'index': MATCH}, 'children'),
+    Input({'type': 'select-province', 'index': MATCH}, 'value')
 )
-def callback1(value):
-    # 此处故意不处理默认状态下输入值为None的情况
-    return int(value) ** 2
-
-
-@app.callback(
-    # 此处故意写错为不存在的id
-    Output('output3', 'children'),
-    Input('input2', 'value')
-)
-def callback2(value):
+def refresh_code_output(value):
 
     if value:
-        return int(value) ** 0.5
+        return region2code[value]
+    else:
+        return dash.no_update
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run_server(debug=True)
