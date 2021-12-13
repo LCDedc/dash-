@@ -1,65 +1,103 @@
+#它通过第一排若干Input()部件及一个Button()部件来记录并提交每笔账对应的相关信息，并且在最下方输出已记录账目金额之和
 import dash
 import dash_bootstrap_components as dbc
+import dash_core_components as dcc
 import dash_html_components as html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State, ALL
+import re
+import json
 
-app = dash.Dash(
-    __name__,
-    external_stylesheets=['css/bootstrap.min.css']
-)
+app = dash.Dash(__name__)
 
 app.layout = html.Div(
-    dbc.Container(
-        [
-            html.Br(),
-            html.Br(),
-            html.Br(),
+    [
+        html.Br(),
+        html.Br(),
+        dbc.Container(
             dbc.Row(
                 [
                     dbc.Col(
-                        dbc.Input(id='input1'),
-                        width=4
+                        dbc.InputGroup(
+                            [
+                                dbc.InputGroupAddon("金额", addon_type="prepend"),
+                                dbc.Input(
+                                    id='account-amount',
+                                    placeholder='请输入金额',
+                                    type="number",
+                                ),
+                                dbc.InputGroupAddon("元", addon_type="append"),
+                            ],
+                        ),
+                        width=5
                     ),
                     dbc.Col(
-                        dbc.Label(id='output1'),
-                        width=4
-                    )
-                ]
-            ),
-            dbc.Row(
-                [
-                    dbc.Col(
-                        dbc.Input(id='input2'),
-                        width=4
+                        dcc.Dropdown(
+                            id='account-type',
+                            options=[
+                                {'label': '生活开销', 'value': '生活开销'},
+                                {'label': '人情往来', 'value': '人情往来'},
+                                {'label': '医疗保健', 'value': '医疗保健'},
+                                {'label': '旅游休闲', 'value': '旅游休闲'},
+                            ],
+                            placeholder='请选择类型：'
+                        ),
+                        width=5
                     ),
                     dbc.Col(
-                        dbc.Label(id='output2'),
-                        width=4
+                        dbc.Button('提交记录', id='account-submit'),
+                        width=2
                     )
                 ]
             )
-        ]
-    )
+        ),
+        html.Br(),
+        dbc.Container([], id='account-record-container'),
+        dbc.Container('暂无记录！', id='account-record-sum'),
+        dbc.Container(html.Pre('{}', id='raw-json'))
+    ]
 )
-
-@app.callback(
-    Output('output1', 'children'),
-    Input('input1', 'value')
-)
-def callback1(value):
-
-    if value:
-        return int(value) ** 2
 
 
 @app.callback(
-    Output('output2', 'children'),
-    Input('input2', 'value')
+    Output('account-record-container', 'children'),
+    Input('account-submit', 'n_clicks'),
+    [State('account-record-container', 'children'),
+     State('account-amount', 'value'),
+     State('account-type', 'value')],
+    prevent_initial_call=True
 )
-def callback2(value):
+def update_account_records(n_clicks, children, account_amount, account_type):
+    '''
+    用于处理每一次的记账输入并渲染前端记录
+    '''
+    if account_amount and account_type:
+        children.append(dbc.Row(
+            dbc.Col(
+                '【{}】类开销【{}】元'.format(account_type, account_amount)
+            ),
+            # 以字典形式定义id
+            #这里不同于以前我们采取的id=某个字符串的定义方法，换成字典之后，其type键值对用来记录唯一id信息，
+            # 每一次新纪录追加时type值都相等，因为它们被组织为同id部件集合，而键值对index则用于在type值相同的一个部件集合下，
+            # 区分出不同的独立部件元素。
+            id={'type': 'single-account_record', 'index': children.__len__()}
+        ))
 
-    if value:
-        return int(value) ** 0.5
+        return children
 
-if __name__ == "__main__":
+
+@app.callback(
+    [Output('account-record-sum', 'children'),
+     Output('raw-json', 'children')],
+    Input({'type': 'single-account_record', 'index': ALL}, 'children'),
+    prevent_initial_call=True
+)
+def refresh_account_sum(children):
+    '''
+    对多部件集合single-account_record下所有账目记录进行求和
+    '''
+    return '账本总开销：{}'.format(sum([int(re.findall('\d+',
+                                                 child['props']['children'])[0])
+                                  for child in children])), json.dumps(children, indent=2)
+
+if __name__ == '__main__':
     app.run_server(debug=True)
